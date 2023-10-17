@@ -1,0 +1,279 @@
+package $package;
+
+import org.aspectj.lang.ProceedingJoinPoint;
+import org.aspectj.lang.annotation.Around;
+import sk.tuke.meta.persistence.AtomicPersistenceOperation;
+import sk.tuke.meta.persistence.DAOPersistenceManager;
+import sk.tuke.meta.persistence.EntityDAO;
+import sk.tuke.meta.persistence.EntityProxy;
+import org.aspectj.lang.annotation.Aspect;
+
+import java.io.BufferedReader;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.lang.reflect.Constructor;
+import java.lang.reflect.InvocationTargetException;
+import java.sql.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
+
+import java.nio.charset.StandardCharsets;
+import java.sql.Connection;
+import javax.persistence.Column;
+import javax.persistence.Id;
+import javax.persistence.ManyToOne;
+import javax.persistence.Table;
+import java.lang.reflect.Field;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
+public class ${entity}DAO implements EntityDAO<$entity> {
+
+    private final DAOPersistenceManager manager;
+    private final Connection connection;
+
+    public ${entity}DAO(DAOPersistenceManager manager){
+        this.manager = manager;
+        this.connection = manager.getConnection();
+    }
+
+
+    @Override
+    @AtomicPersistenceOperation
+    public void createTable()  throws SQLException  {
+
+        if (!getDBTables(connection).contains("${tableName}")){
+                PreparedStatement psmt = connection.prepareStatement("${creatTableSQL}");
+                psmt.execute();
+        }
+    }
+
+    @Override
+    @AtomicPersistenceOperation
+    public $entity get(long id) throws SQLException, InvocationTargetException, InstantiationException, IllegalAccessException, ClassNotFoundException{
+
+        PreparedStatement pstmt = connection.prepareStatement("${getDetailSQL}");
+        pstmt.setString(1, String.valueOf(id));
+        ResultSet resultSet = pstmt.executeQuery();
+        ResultSetMetaData rsmd = resultSet.getMetaData();
+        ${entity} obj = new ${entity}();
+
+        if (resultSet.next()){
+
+            #set ($map = $entitySetters )
+            #foreach ($mapEntry in $map.entrySet())
+                #if(${entityIdColumnDB} == ${mapEntry.key} )
+                    obj.${mapEntry.value}(resultSet.getLong("$mapEntry.key"));
+                #elseif($stringVariablesList.contains($mapEntry.key))
+                    obj.${mapEntry.value}(resultSet.getString("${mapEntry.key}"));
+                #elseif($intVariablesList.contains($mapEntry.key))
+                    obj.${mapEntry.value}(resultSet.getInt("${mapEntry.key}"));
+                #elseif( ${relationShipColumnDB} == ${mapEntry.key})
+                    //$relationStrategy
+                    #if($relationStrategy.contains("LAZY"))
+                        Object proxy = EntityProxy
+                                .createProxy(${relationClassName}.class,resultSet.getLong("${mapEntry.key}"),manager);
+
+                        obj.${mapEntry.value}((${relationClassType})proxy);
+                    #else
+                        obj.${mapEntry.value}(manager.get(${relationClassName}.class,resultSet.getLong("${mapEntry.key}")).get());
+                    #end
+                #else
+                    System.out.println("else");
+                #end
+            #end
+        }
+        return obj;
+    }
+
+    @Override
+    @AtomicPersistenceOperation
+    public List<$entity> getAll() throws SQLException, InvocationTargetException, InstantiationException, IllegalAccessException {
+
+        List<$entity> allObj = new ArrayList<>();
+        PreparedStatement pstmt = connection.prepareStatement("${getListSQL}");
+        ResultSet resultSet = pstmt.executeQuery();
+
+        while (resultSet.next()){
+##            allObj.add(createEntity(type,resultSet).get());
+            $entity obj = new $entity();
+
+            #foreach ($mapEntry in $map.entrySet())
+
+                #if(${entityIdColumnDB}==${mapEntry.key} )
+                    obj.${mapEntry.value}(resultSet.getLong("${tableName}_${mapEntry.key}"));
+                #elseif($stringVariablesList.contains($mapEntry.key))
+                    obj.${mapEntry.value}(resultSet.getString("${tableName}_${mapEntry.key}"));
+                #elseif($intVariablesList.contains($mapEntry.key))
+                    obj.${mapEntry.value}(resultSet.getInt("${tableName}_${mapEntry.key}"));
+                #elseif( ${relationShipColumnDB} == ${mapEntry.key})
+
+##                    obj.${mapEntry.value}(manager.get(${relationClassName}.class,resultSet.getLong("${mapEntry.key}")).get());
+
+                    #if($relationStrategy.contains("LAZY"))
+                        Object proxy = EntityProxy
+                                .createProxy(${relationClassName}.class,resultSet.getLong("${relationTableName}_${relationEntityIdColumnDB}"),manager);
+                        obj.${mapEntry.value}((${relationClassType})proxy);
+                    #else
+                        ${relationClassName} obj${foreach.count} = new ${relationClassName}();
+                        #set ($map2 = $relationEntitySetters )
+                        #set ($numb = $foreach.count )
+
+                        #foreach($mapEntry2 in $map2.entrySet())
+                            #if(${relationEntityIdColumnDB}==${mapEntry2.key} )
+                                obj${numb}.${mapEntry2.value}(resultSet.getLong("${relationTableName}_${mapEntry2.key}"));
+                            #elseif($relationStringVariablesList.contains($mapEntry2.key))
+                                obj${numb}.${mapEntry2.value}(resultSet.getString("${relationTableName}_${mapEntry2.key}"));
+                            #elseif($relationIntVariablesList.contains($mapEntry2.key))
+                                obj${numb}.${mapEntry2.value}(resultSet.getInt("${relationTableName}_${mapEntry2.key}"));
+                            #end
+                        #end
+                        obj.${mapEntry.value}(obj${numb});
+                    #end
+                #end
+            #end
+            allObj.add(obj);
+
+        }
+
+        return allObj;
+    }
+
+    @Override
+    @AtomicPersistenceOperation
+    public List<$entity> getBy(String fieldName, Object value) throws SQLException, InvocationTargetException, InstantiationException, IllegalAccessException{
+
+        List<$entity> allObj = new ArrayList<>();
+        System.out.println("${getListSQL}"+ " WHERE ${tableName}." + fieldName + " = " + value.toString());
+
+        PreparedStatement pstmt =
+                connection.prepareStatement("${getListSQL}"+ " WHERE ${tableName}." + fieldName + " = " + "\'" + value.toString() + "\'" );
+        ResultSet resultSet = pstmt.executeQuery();
+
+        while (resultSet.next()){
+            ##            allObj.add(createEntity(type,resultSet).get());
+            $entity obj = new $entity();
+
+            #foreach ($mapEntry in $map.entrySet())
+
+                #if(${entityIdColumnDB}==${mapEntry.key} )
+                    obj.${mapEntry.value}(resultSet.getLong("${tableName}_${mapEntry.key}"));
+                #elseif($stringVariablesList.contains($mapEntry.key))
+                    obj.${mapEntry.value}(resultSet.getString("${tableName}_${mapEntry.key}"));
+                #elseif($intVariablesList.contains($mapEntry.key))
+                    obj.${mapEntry.value}(resultSet.getInt("${tableName}_${mapEntry.key}"));
+                #elseif( ${relationShipColumnDB} == ${mapEntry.key})
+
+                    ##                    obj.${mapEntry.value}(manager.get(${relationClassName}.class,resultSet.getLong("${mapEntry.key}")).get());
+
+                    #if($relationStrategy.contains("LAZY"))
+                        Object proxy = EntityProxy
+                                .createProxy(${relationClassName}.class,resultSet.getLong("${relationTableName}_${relationEntityIdColumnDB}"),manager);
+                        obj.${mapEntry.value}((${relationClassType})proxy);
+                    #else
+                        ${relationClassName} obj${foreach.count} = new ${relationClassName}();
+                        #set ($map2 = $relationEntitySetters )
+                        #set ($numb = $foreach.count )
+
+                        #foreach($mapEntry2 in $map2.entrySet())
+                            #if(${relationEntityIdColumnDB}==${mapEntry2.key} )
+                                obj${numb}.${mapEntry2.value}(resultSet.getLong("${relationTableName}_${mapEntry2.key}"));
+                            #elseif($relationStringVariablesList.contains($mapEntry2.key))
+                                obj${numb}.${mapEntry2.value}(resultSet.getString("${relationTableName}_${mapEntry2.key}"));
+                            #elseif($relationIntVariablesList.contains($mapEntry2.key))
+                                obj${numb}.${mapEntry2.value}(resultSet.getInt("${relationTableName}_${mapEntry2.key}"));
+                            #end
+                        #end
+                        obj.${mapEntry.value}(obj${numb});
+                    #end
+                #end
+            #end
+            allObj.add(obj);
+
+        }
+
+        return allObj;
+    }
+
+    @Override
+    @AtomicPersistenceOperation
+    public long save(Object entity) throws IllegalAccessException, SQLException, ClassNotFoundException, InvocationTargetException, InstantiationException{
+
+        long result = 0L;
+        String entId  = String.valueOf(getValue(entity,"${entityIdColumn}"));
+        boolean existsStatus = entId.equals("0");
+        String query = existsStatus? "${insertSQL}" : "${updateSQL}";
+        PreparedStatement pstmt = connection.prepareStatement(query);
+        #set($loadIndex=1)
+        #foreach($item in ${entityFields})
+            #if($item != $entityIdColumn)
+                #if($item == $relationShipColumn)
+                    pstmt.setLong($loadIndex,Long.valueOf(manager.save(getValue(entity,"${item}"))));
+                #else
+                    pstmt.setString($loadIndex,  String.valueOf(getValue(entity,"${item}")));
+                #end
+                #set($loadIndex=$loadIndex+1)
+            #end
+        #end
+        if (!existsStatus){
+            pstmt.setLong($entityFields.size(),  Long.parseLong(entId));
+            result = Long.parseLong(entId);
+        }
+        try {
+            if (pstmt.executeUpdate() == 1 && existsStatus){
+                ResultSet res = pstmt.getGeneratedKeys();
+                if (res.next()){result = setIdValue(entity,res.getLong(1));}
+            }
+        }catch (SQLException e){
+            System.out.println(e);
+        }
+        return result;
+    }
+
+
+    @Override
+    @AtomicPersistenceOperation
+    public void delete(Object entity) throws IllegalAccessException, SQLException  {
+        PreparedStatement pstmt = connection.prepareStatement("${deleteSQL}");
+        pstmt.setLong(1,Long.parseLong(String.valueOf(getValue(entity,"${entityIdColumn}"))));
+        pstmt.executeUpdate();
+    }
+    @AtomicPersistenceOperation
+    public ArrayList<String> getDBTables( Connection connection) throws SQLException {
+        ArrayList<String> names = new ArrayList<>();
+
+        DatabaseMetaData dbm = connection.getMetaData();
+        String[] types = {"TABLE"};
+        ResultSet tables = dbm.getTables(null, null, "%", types);
+        while (tables.next()) {
+            names.add(tables.getString("TABLE_NAME"));
+        }
+
+        return names;
+    }
+
+    private Object getValue(Object entity,String variableName) throws IllegalAccessException {
+        for (Field fld: entity.getClass().getDeclaredFields()) {
+            if (fld.getName().equals(variableName)){
+                fld.setAccessible(true);
+
+                return fld.get(entity);
+            }
+        }
+        return "";
+    }
+    private long setIdValue(Object entity,long id) throws IllegalAccessException{
+        for (Field fld: entity.getClass().getDeclaredFields()) {
+            if (fld.isAnnotationPresent(Id.class)){
+                fld.setAccessible(true);
+                fld.set(entity,id);
+                return id;
+            }
+        }
+        return 0L;
+    }
+
+
+}

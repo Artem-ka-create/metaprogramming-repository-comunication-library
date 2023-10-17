@@ -1,0 +1,16 @@
+-Xajruntimetarget:1.5
+-encoding
+UTF-8
+-source
+17
+-target
+17
+-classpath
+/Users/artempetrenko/.m2/repository/javax/persistence/persistence-api/1.0.2/persistence-api-1.0.2.jar:/Users/artempetrenko/.m2/repository/org/xerial/sqlite-jdbc/3.40.1.0/sqlite-jdbc-3.40.1.0.jar:/Users/artempetrenko/.m2/repository/org/aspectj/aspectjrt/1.9.19/aspectjrt-1.9.19.jar:/Users/artempetrenko/Java/MetaProgramming/assignment.artem.petrenko/persistence/target/classes
+-proc:none
+-d
+/Users/artempetrenko/Java/MetaProgramming/assignment.artem.petrenko/persistence/target/classes
+-s
+/Users/artempetrenko/Java/MetaProgramming/assignment.artem.petrenko/persistence/target/generated-sources/aspectj-maven-plugin
+/Users/artempetrenko/Java/MetaProgramming/assignment.artem.petrenko/persistence/src/main/java/sk/tuke/meta/persistence/PersistenceManager.java
+/Users/artempetrenko/Java/MetaProgramming/assignment.artem.petrenko/persistence/src/main/java/sk/tuke/meta/persistence/ReflectivePersistenceManager.java
